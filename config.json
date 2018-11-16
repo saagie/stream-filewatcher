@@ -1,0 +1,15 @@
+{
+  "input": {
+    "paths": [
+      "./src/main/resources"
+    ],
+    "interval": 1,
+    "maxBufferSize": 8192
+  },
+  "kafka": {
+    "host": [
+      "localhost:9092"
+    ],
+    "topic": "topic"
+  }
+}

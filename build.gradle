@@ -19,14 +19,14 @@ dependencies {
     compile group: 'org.typelevel', name: "cats-core_$scalaMajor", version: cats
     compile group: 'org.typelevel', name: "mouse_$scalaMajor", version: mouse
 
-    compile group: 'com.typesafe.akka', name: "akka-stream_$scalaMajor", version: akka
-    compile group: 'com.typesafe.akka', name: "akka-persistence_$scalaMajor", version: akka
-    compile group: 'com.twitter', name: "chill-akka_$scalaMajor", version: chill
-
-    compile group: 'org.json4s', name: "json4s-native_$scalaMajor", version: '3.6.1'
     compile group: 'ch.qos.logback', name: 'logback-classic', version: logback
     compile group: 'org.codehaus.groovy', name: 'groovy', version: groovy
+
+    compile group: 'com.typesafe.akka', name: "akka-stream_$scalaMajor", version: akka
+    compile group: 'com.typesafe.akka', name: "akka-persistence_$scalaMajor", version: akka
     compile group: 'org.fusesource.leveldbjni', name: 'leveldbjni-all', version: leveldb
+    compile group: 'com.twitter', name: "chill-akka_$scalaMajor", version: chill
     compile group: 'com.lightbend.akka', name: "akka-stream-alpakka-file_$scalaMajor", version: alpakka
-    compile group: 'net.cakesolutions', name: "scala-kafka-client-akka_$scalaMajor", version: '2.0.0'
+    compile group: 'net.cakesolutions', name: "scala-kafka-client-akka_$scalaMajor", version: kafka
+    compile group: 'org.json4s', name: "json4s-native_$scalaMajor", version: json4s
 }

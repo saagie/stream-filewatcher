@@ -40,7 +40,7 @@ case class FileState(path: String, processed: Long = Monoid.empty[Long], skip: L
   def processLine: FileState = copy(processed = processed + 1)
 }
 
-class FileTracker(implicit val fileSystem: FileSystem) extends PersistentActor with ActorLogging {
+class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: Parameters) extends PersistentActor with ActorLogging {
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
 
@@ -53,7 +53,7 @@ class FileTracker(implicit val fileSystem: FileSystem) extends PersistentActor w
   val fs: FileSystem = FileSystems.getDefault
 
   val producer = KafkaProducer(
-    Conf(new StringSerializer(), new StringSerializer(), bootstrapServers = "localhost:9092")
+    Conf(new StringSerializer(), new StringSerializer(), bootstrapServers = parameters.kafka.host.mkString(","))
   )
 
   override def receiveRecover: Receive = {
