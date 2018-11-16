@@ -1,5 +1,6 @@
 plugins {
     id 'scala'
+    id 'com.github.johnrengelman.shadow' version '4.0.1'
 }
 
 sourceCompatibility = JavaVersion.VERSION_1_8
@@ -29,4 +30,14 @@ dependencies {
     compile group: 'com.lightbend.akka', name: "akka-stream-alpakka-file_$scalaMajor", version: alpakka
     compile group: 'net.cakesolutions', name: "scala-kafka-client-akka_$scalaMajor", version: kafka
     compile group: 'org.json4s', name: "json4s-native_$scalaMajor", version: json4s
+}
+
+ext.mainClassName = 'io.saagie.filewatcher.Filewatcher'
+
+shadowJar {
+    zip64 = true
+    classifier = ""
+    manifest {
+        attributes "Main-Class": mainClassName
+    }
 }
