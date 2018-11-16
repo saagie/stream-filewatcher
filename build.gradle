@@ -1,3 +1,5 @@
+import com.github.jengelman.gradle.plugins.shadow.transformers.AppendingTransformer
+
 plugins {
     id 'scala'
     id 'com.github.johnrengelman.shadow' version '4.0.1'
@@ -25,7 +27,7 @@ dependencies {
 
     compile group: 'com.typesafe.akka', name: "akka-stream_$scalaMajor", version: akka
     compile group: 'com.typesafe.akka', name: "akka-persistence_$scalaMajor", version: akka
-    compile group: 'org.fusesource.leveldbjni', name: 'leveldbjni-all', version: leveldb
+//    compile group: 'org.iq80.leveldb', name: 'leveldb', version: leveldb
     compile group: 'com.twitter', name: "chill-akka_$scalaMajor", version: chill
     compile group: 'com.lightbend.akka', name: "akka-stream-alpakka-file_$scalaMajor", version: alpakka
     compile group: 'net.cakesolutions', name: "scala-kafka-client-akka_$scalaMajor", version: kafka
@@ -39,5 +41,9 @@ shadowJar {
     classifier = ""
     manifest {
         attributes "Main-Class": mainClassName
+    }
+
+    transform(AppendingTransformer) {
+        resource = 'reference.conf'
     }
 }
