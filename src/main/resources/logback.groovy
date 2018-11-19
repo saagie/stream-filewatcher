@@ -31,19 +31,17 @@ appender("console-err", ConsoleAppender) {
     }
 }
 
-//logger("org.apache.spark", ERROR)
-//logger("akka.event.slf4j", DEBUG)
-//logger("org.spark-project.jetty.util.component.AbstractLifeCycle", WARN)
-//logger("org.apache.spark.repl.SparkIMain\$exprTyper", WARN)
-//logger("org.apache.spark.repl.SparkILoop\$SparkILoopInterpreter", WARN)
-//logger("org.apache.parquet", WARN)
-//logger("parquet", WARN)
-//logger("org.apache.hadoop", ERROR)
-//logger("org.apache.hadoop.hive.metastore.RetryingHMSHandler", ERROR)
-//logger("org.apache.hadoop.hive.ql.exec.FunctionRegistry", ERROR)
-//logger("org.spark_project.jetty", WARN)
-//logger("org.elasticsearch.hadoop", WARN)
-//logger("org.elasticsearch.spark", WARN)
-//logger("org.apache.kafka", INFO)
+appender("file", FileAppender) {
+    append = true
+    file = "filewatcher.log"
+    immediateFlush = false
+    encoder(PatternLayoutEncoder) {
+        pattern = "%d{yy/MM/dd HH:mm:ss.SS} %p %c: %m%n"
+    }
+}
 
-root(DEBUG, ["console", "console-err"])
+logger("org.apache.kafka", WARN)
+logger("akka.persistence", WARN)
+logger("akka.event.slf4j", WARN)
+
+root(DEBUG, ["console", "console-err", "file"])

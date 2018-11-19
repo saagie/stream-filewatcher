@@ -1,7 +1,8 @@
 {
   "input": {
     "paths": [
-      "./src/main/resources"
+      "./src/main/resources/*.test",
+      "./src/main/resources/*.test2"
     ],
     "interval": 1,
     "maxBufferSize": 8192
