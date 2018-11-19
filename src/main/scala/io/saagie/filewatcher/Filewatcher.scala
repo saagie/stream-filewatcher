@@ -19,49 +19,66 @@ case class Input(paths: List[String], interval: Long, maxBufferSize: Int)
 
 case class KafkaConf(host: List[String], topic: String)
 
+case class ConfParameters(path: Option[String] = None, verbose: Option[Boolean] = None)
+
 case object Filewatcher extends App {
   implicit val system: ActorSystem = ActorSystem(s"Robert")
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val formats = DefaultFormats
-  val parameters = read[Parameters](Source.fromFile("./config.json").getLines().mkString("\n"))
 
-  val fs = FileSystems.getDefault
+  val parser = new scopt.OptionParser[ConfParameters]("java -jar stream-filewatcher-<version>.jar") {
+    opt[String]("conf-file")
+      .abbr("c")
+      .action((p, c) => c.copy(Some(p)))
+      .text("Configuration (config.conf) file path.")
+      .required()
+  }
 
-  val tracker = system.actorOf(Props(classOf[FileTracker], fs, parameters))
-  println(println(s"$parameters"))
-  parameters.input.paths.foreach(path => {
-    println(s"$path")
-    Directory.ls(fs.getPath(path))
-      .runForeach { path: Path =>
-        println(s"$path")
-        if (path.toFile.isFile) {
-          tracker ! OpenFile(path.toString)
-          FileTailSource
-            .lines(path, parameters.input.maxBufferSize, parameters.input.interval seconds)
-            .runForeach { line =>
-              tracker ! ProcessLine(path.toString, line, parameters.kafka.topic)
-            }
-        }
-      }
+  parser.parse(args, ConfParameters()) match {
+    case Some(conf) =>
+      val parameters = read[Parameters](Source.fromFile(conf.path.get).getLines().mkString("\n"))
 
-    val source = DirectoryChangesSource(fs.getPath(path), parameters.input.interval seconds, parameters.input.maxBufferSize)
-    source.runForeach {
-      case (p, change) =>
-        change match {
-          case DirectoryChange.Creation =>
-            tracker ! OpenFile(p.toString)
-            FileTailSource
-              .lines(p, parameters.input.maxBufferSize, parameters.input.interval seconds)
-              .runForeach { line =>
-                tracker ! ProcessLine(p.toString, line, parameters.kafka.topic)
+      val fs = FileSystems.getDefault
+
+      val tracker = system.actorOf(Props(classOf[FileTracker], fs, parameters))
+      println(s"$parameters")
+      parameters.input.paths.foreach(path => {
+        Directory.ls(fs.getPath(path))
+          .runForeach {
+            path: Path =>
+              if (path.toFile.isFile) {
+                tracker ! OpenFile(path.toString)
+                FileTailSource
+                  .lines(path, parameters.input.maxBufferSize, parameters.input.interval seconds)
+                  .runForeach {
+                    line =>
+                      tracker ! ProcessLine(path.toString, line, parameters.kafka.topic)
+                  }
               }
-          case DirectoryChange.Modification =>
-            tracker ! None
-          case DirectoryChange.Deletion =>
-            tracker ! DeleteFile(p.toString)
-            tracker ! None
+          }
+
+        val source = DirectoryChangesSource(fs.getPath(path), parameters.input.interval seconds, parameters.input.maxBufferSize)
+        source.runForeach {
+          case (p, change) =>
+            change match {
+              case DirectoryChange.Creation =>
+                tracker ! OpenFile(p.toString)
+                FileTailSource
+                  .lines(p, parameters.input.maxBufferSize, parameters.input.interval seconds)
+                  .runForeach {
+                    line =>
+                      tracker ! ProcessLine(p.toString, line, parameters.kafka.topic)
+                  }
+              case DirectoryChange.Modification =>
+                tracker ! None
+              case DirectoryChange.Deletion =>
+                tracker ! DeleteFile(p.toString)
+                tracker ! None
+            }
+          case o => println(s"No change: $o")
         }
-      case o => println(s"No change: $o")
-    }
-  })
+      })
+    case None =>
+      system.terminate()
+  }
 }

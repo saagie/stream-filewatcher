@@ -66,18 +66,23 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
     case SnapshotOffer(_, snapshot: TrackerStatus) => state = snapshot
   }
 
-  def saveSnapshot(): Unit = if (lastSequenceNr % snapshotInterval == 0 && lastSequenceNr != 0) {
-    log.debug("Saving snapshot, Current state: {}", state)
-    saveSnapshot(state)
+  def saveSnapshot(): Unit = {
+    if (lastSequenceNr % snapshotInterval == 0 && lastSequenceNr != 0) {
+      log.debug("Saving snapshot, Current state: {}", state)
+      saveSnapshot(state)
+    }
+    log.debug("New state: {}", state)
   }
 
   override def receiveCommand: Receive = {
     case open: OpenFile => persist(open) { o =>
+      log.debug("Path to open: {}", o)
       state = state.openFile(o.path)
       context.system.eventStream.publish(o)
       saveSnapshot()
     }
     case delete: DeleteFile => persist(delete) { d =>
+      log.debug("Path to delete: {}", d)
       state.deleteFile(d.path).fold(
         ex => log.error("Impossible to stop file tracking: {} cause: {}.", d.path, ex),
         st => state = st)
@@ -93,17 +98,20 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
       val tracker = state.fileStates.find(_.path == line.path).get
       if (tracker.skip <= tracker.processed) {
         self ! SendToKafka(line.path, line.line, line.topic)
+      } else {
+        log.debug("Line skipped.")
       }
       state = state.processLine(line.path)
     case line: SendToKafka =>
-      self ! SkipLine(line.path, line.line)
       val json = compact(render(
         ("message" -> line.line) ~
           ("source" -> line.path) ~
           ("fields" -> ("log_type" -> line.topic))
       ))
       producer.send(KafkaProducerRecord(line.topic, None, json))
+      self ! SkipLine(line.path, line.line)
       log.debug("Sending line to Kafka")
-    case None => println(s"Watcher Status: $state")
+    case None =>
+      log.info(s"Watcher Status: $state")
   }
 }

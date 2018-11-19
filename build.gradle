@@ -27,11 +27,14 @@ dependencies {
 
     compile group: 'com.typesafe.akka', name: "akka-stream_$scalaMajor", version: akka
     compile group: 'com.typesafe.akka', name: "akka-persistence_$scalaMajor", version: akka
-//    compile group: 'org.iq80.leveldb', name: 'leveldb', version: leveldb
+    compile group: 'com.typesafe.akka', name: "akka-slf4j_$scalaMajor", version: akka
+
     compile group: 'com.twitter', name: "chill-akka_$scalaMajor", version: chill
     compile group: 'com.lightbend.akka', name: "akka-stream-alpakka-file_$scalaMajor", version: alpakka
     compile group: 'net.cakesolutions', name: "scala-kafka-client-akka_$scalaMajor", version: kafka
     compile group: 'org.json4s', name: "json4s-native_$scalaMajor", version: json4s
+
+    compile group: 'com.github.scopt', name: "scopt_$scalaMajor", version: scopt
 }
 
 ext.mainClassName = 'io.saagie.filewatcher.Filewatcher'
