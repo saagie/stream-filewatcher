@@ -132,9 +132,10 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
           ("fields" -> ("log_type" -> line.topic))
       ))
       producer.send(KafkaProducerRecord(line.topic, None, json))
-      self ! SkipLine(line.path, line.line)
+      self ! SkipLine(line.path, "")
       log.debug("Sending line to Kafka")
     case None =>
       log.info(s"Watcher Status: $state")
   }
 }
+git status
