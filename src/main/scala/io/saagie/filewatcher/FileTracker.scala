@@ -138,4 +138,3 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
       log.info(s"Watcher Status: $state")
   }
 }
-git status
