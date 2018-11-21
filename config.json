@@ -1,8 +1,10 @@
 {
   "input": {
     "paths": [
-      "./src/main/resources/*.test",
-      "./src/main/resources/*.test2"
+      "src/main/resources/*.test",
+      "src/main/resources/*.test2",
+      "src/main/resources/*.conf",
+      "src/main/libs"
     ],
     "interval": 1,
     "maxBufferSize": 8192
@@ -12,5 +14,9 @@
       "localhost:9092"
     ],
     "topic": "topic"
+  },
+  "log": {
+    "dir": "/home/erwan/IdeaProjects/stream-filewatcher/",
+    "level": "DEBUG"
   }
 }

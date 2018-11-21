@@ -2,30 +2,39 @@ package io.saagie.filewatcher
 
 import java.nio.file.{FileSystems, Path}
 
-import akka.actor.{ActorSystem, Props}
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.ActorMaterializer
 import akka.stream.alpakka.file.DirectoryChange
 import akka.stream.alpakka.file.scaladsl.{Directory, DirectoryChangesSource, FileTailSource}
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.classic.{Level, Logger}
+import ch.qos.logback.core.FileAppender
 import org.json4s._
 import org.json4s.native.Serialization._
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
 import scala.io.Source
+import scala.util.Try
 
 case class Parameters(input: Input,
-                      kafka: KafkaConf)
+                      kafka: KafkaConf,
+                      log: Logging)
 
 case class Input(paths: List[String], interval: Long, maxBufferSize: Int)
 
 case class KafkaConf(host: List[String], topic: String)
 
-case class ConfParameters(path: Option[String] = None, verbose: Option[Boolean] = None)
+case class Logging(dir: String, level: String)
+
+case class ConfParameters(path: Option[String] = None)
 
 case object Filewatcher extends App {
   implicit val system: ActorSystem = ActorSystem(s"Filewatcher")
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val formats = DefaultFormats
+
+  def rootLogger = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME).asInstanceOf[Logger]
 
   def log = LoggerFactory.getLogger(getClass)
 
@@ -37,7 +46,36 @@ case object Filewatcher extends App {
       .required()
   }
 
+  def manageLog(parameters: Parameters): Unit = {
+    rootLogger.setLevel(Level.toLevel(parameters.log.level))
+    val fileAppender = rootLogger
+      .getAppender("file")
+      .asInstanceOf[FileAppender[ILoggingEvent]]
+    fileAppender.setFile(s"${parameters.log.dir}${fileAppender.getFile}")
+  }
+
   parser.parse(args, ConfParameters()) match {
+    case Some(conf) =>
+      val parameters = read[Parameters](Source.fromFile(conf.path.get).getLines().mkString("\n"))
+      this.manageLog(parameters)
+      val fs = FileSystems.getDefault
+      val tracker: ActorRef = system.actorOf(Props(classOf[FileTracker], fs, parameters))
+      val directoryWatcher = system.actorOf(Props(classOf[DirectoryWatcher], fs, tracker, parameters))
+      parameters.input.paths.foreach(pathString => {
+        Try {
+          val path = fs.getPath(pathString)
+          val parent = if (path.toFile.isDirectory) {
+            ListParent(path, fs.getPathMatcher(s"regex:.*"))
+          } else {
+            ListParent(path.getParent, fs.getPathMatcher(s"glob:$pathString"))
+          }
+          directoryWatcher ! parent
+        }
+      })
+    case None => system.terminate()
+  }
+
+  /*parser.parse(args, ConfParameters()) match {
     case Some(conf) =>
       val parameters = read[Parameters](Source.fromFile(conf.path.get).getLines().mkString("\n"))
 
@@ -45,8 +83,11 @@ case object Filewatcher extends App {
 
       val tracker = system.actorOf(Props(classOf[FileTracker], fs, parameters))
       log.info("Configuration: {}", parameters)
-      parameters.input.paths.foreach(path => {
-        val levels = path.split("/").toSeq
+      parameters
+        .input
+        .paths
+        .foreach(path_conf => {
+        val levels = path_conf.split("/").toSeq
         val (regex, clean) = if (levels.last.contains("*")) {
           (s"${levels.last.replace("*", "^*")}$$".r, levels.init.mkString("/"))
         } else {
@@ -70,10 +111,10 @@ case object Filewatcher extends App {
         val source = DirectoryChangesSource(fs.getPath(clean), parameters.input.interval seconds, parameters.input.maxBufferSize)
         source.runForeach {
           case (p, change) =>
-            log.info("Path: {}", p)
-            log.info("Change: {}", change)
             regex.findFirstMatchIn(p.toString) match {
               case Some(_) =>
+                log.info("Path: {}", p)
+                log.info("Change: {}", change)
                 change match {
                   case DirectoryChange.Creation =>
                     tracker ! OpenFile(p.toString)
@@ -96,5 +137,5 @@ case object Filewatcher extends App {
       })
     case None =>
       system.terminate()
-  }
+  }*/
 }

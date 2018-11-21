@@ -4,7 +4,9 @@ import java.nio.file.{FileSystem, FileSystems}
 
 import akka.actor.ActorLogging
 import akka.persistence.{PersistentActor, SnapshotOffer}
-import akka.stream.ActorMaterializer
+import akka.stream.alpakka.file.scaladsl.FileTailSource
+import akka.stream.scaladsl.{Keep, Sink}
+import akka.stream.{ActorMaterializer, KillSwitches, UniqueKillSwitch}
 import cakesolutions.kafka.KafkaProducer.Conf
 import cakesolutions.kafka.{KafkaProducer, KafkaProducerRecord}
 import cats.instances.all._
@@ -12,6 +14,8 @@ import cats.kernel.Monoid
 import org.apache.kafka.common.serialization.StringSerializer
 import org.json4s.JsonDSL._
 import org.json4s.native.JsonMethods._
+
+import scala.concurrent.duration._
 
 case class TrackerStatus(fileStates: List[FileState] = Monoid.empty[List[FileState]]) {
   def openFile(path: String): TrackerStatus = if (!fileStates.exists(_.path == path)) {
@@ -27,6 +31,13 @@ case class TrackerStatus(fileStates: List[FileState] = Monoid.empty[List[FileSta
     Left("File already not tracked.")
   }
 
+  def addSwitch(path: String, uniqueKillSwitch: UniqueKillSwitch): TrackerStatus = if (fileStates.exists(_.path == path)) {
+    val tracker = fileStates.find(_.path == path).get
+    copy(fileStates = fileStates.filterNot(_.path == path) :+ tracker.copy(uniqueKillSwitch = Some(uniqueKillSwitch)))
+  } else {
+    this
+  }
+
   def skipLine(path: String): TrackerStatus =
     copy(fileStates = fileStates.filter(_.path == path).head.skipLine :: fileStates.filterNot(_.path == path))
 
@@ -34,7 +45,7 @@ case class TrackerStatus(fileStates: List[FileState] = Monoid.empty[List[FileSta
     copy(fileStates = fileStates.find(_.path == path).get.processLine :: fileStates.filterNot(_.path == path))
 }
 
-case class FileState(path: String, processed: Long = Monoid.empty[Long], skip: Long = Monoid.empty[Long]) {
+case class FileState(path: String, processed: Long = Monoid.empty[Long], skip: Long = Monoid.empty[Long], uniqueKillSwitch: Option[UniqueKillSwitch] = None) {
   def skipLine: FileState = copy(skip = skip + 1)
 
   def processLine: FileState = copy(processed = processed + 1)
@@ -45,6 +56,8 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
 
   override def persistenceId: String = "file-tracker-1"
+
+  var switches = Map.empty[String, UniqueKillSwitch]
 
   var state = TrackerStatus()
 
@@ -80,6 +93,14 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
       state = state.openFile(o.path)
       context.system.eventStream.publish(o)
       saveSnapshot()
+      val switch = FileTailSource.lines(fs.getPath(open.path), parameters.input.maxBufferSize, parameters.input.interval seconds)
+        .viaMat(KillSwitches.single)(Keep.right)
+        .toMat(Sink.foreach(line => {
+          self ! ProcessLine(open.path, line, parameters.kafka.topic)
+        }))(Keep.both)
+        .run()
+        ._1
+      switches = switches + (o.path -> switch)
     }
     case delete: DeleteFile => persist(delete) { d =>
       log.debug("Path to delete: {}", d)
@@ -88,6 +109,8 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
         st => state = st)
       context.system.eventStream.publish(d)
       saveSnapshot()
+      switches(d.path).shutdown()
+      switches = switches.filterKeys(_ != d.path)
     }
     case line: SkipLine => persist(line) { l =>
       state = state.skipLine(l.path)

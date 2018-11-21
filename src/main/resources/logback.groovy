@@ -34,7 +34,7 @@ appender("console-err", ConsoleAppender) {
 appender("file", FileAppender) {
     append = true
     file = "filewatcher.log"
-    immediateFlush = false
+    immediateFlush = true
     encoder(PatternLayoutEncoder) {
         pattern = "%d{yy/MM/dd HH:mm:ss.SS} %p %c: %m%n"
     }
@@ -44,4 +44,4 @@ logger("org.apache.kafka", WARN)
 logger("akka.persistence", WARN)
 logger("akka.event.slf4j", WARN)
 
-root(DEBUG, ["console", "console-err", "file"])
+root(INFO, ["console", "console-err", "file"])
