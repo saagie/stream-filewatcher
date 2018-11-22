@@ -4,13 +4,15 @@ This application uses [https://doc.akka.io/docs/akka/current/stream/index.html)]
 directory and send it's information to Kafka.
 
 ### 1. Configuration
-The configuration file has to be in the same directory as the app is launched.
 
 ```json
 {
   "input": {
     "paths": [
-      "./src/main/resources"
+      "src/main/resources/*.test",
+      "src/main/resources/*.test2",
+      "src/main/resources/*.conf",
+      "src/main/libs"
     ],
     "interval": 1,
     "maxBufferSize": 8192
@@ -20,22 +22,30 @@ The configuration file has to be in the same directory as the app is launched.
       "localhost:9092"
     ],
     "topic": "topic"
+  },
+  "log": {
+    "dir": "/home/erwan/IdeaProjects/stream-filewatcher/",
+    "level": "DEBUG"
   }
 }
 ```
 * input
     paths: The list of path to watch. Each file in the path will be read.
-    interval: The interval in seconds between each check of update in files.
+    interval: The interval in seconds between each file content check.
     maxBufferSize: The length of one line in the watched file.
 
 * kafka
     host: Kafka broker list.
     topic: Kafka topic to update.
-    
+
+* log
+    dir: Log file directory
+    level: Log Level
+
 ### 2. Build
 
 To build the application launch `gradle shadowJar` command.
 
 ### 3. Launch
 
-To run the application, launch `java -jar stream-filewatcher.jar`. 
+To run the application, launch `java -jar stream-filewatcher.jar -c config.json`.
