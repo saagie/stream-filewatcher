@@ -13,7 +13,13 @@
     "topic": "topic"
   },
   "log": {
-    "file": "/Users/mazelx/IdeaProjects/Saagie/stream-filewatcher/log/strem-filewatcher.log",
+    "dir": "/Users/mazelx/IdeaProjects/Saagie/stream-filewatcher/test-log/",
     "level": "DEBUG"
+  },
+  "journal": {
+    "dir": "/Users/mazelx/IdeaProjects/Saagie/stream-filewatcher/test-journal/"
+  },
+  "snapshot": {
+    "dir": "/Users/mazelx/IdeaProjects/Saagie/stream-filewatcher/test-snapshot/"
   }
 }
