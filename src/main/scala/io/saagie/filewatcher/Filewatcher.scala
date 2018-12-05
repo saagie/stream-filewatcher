@@ -22,7 +22,7 @@ case class Input(paths: List[String], interval: Long, maxBufferSize: Int)
 
 case class KafkaConf(host: List[String], topic: String)
 
-case class Logging(dir: String, level: String)
+case class Logging(file: String, level: String)
 
 case class ConfParameters(path: Option[String] = None)
 
@@ -32,8 +32,6 @@ case object Filewatcher extends App {
   implicit val formats = DefaultFormats
 
   def rootLogger = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME).asInstanceOf[Logger]
-
-  def log = LoggerFactory.getLogger(getClass)
 
   val parser = new scopt.OptionParser[ConfParameters]("java -jar stream-filewatcher-<version>.jar") {
     opt[String]("conf-file")
@@ -45,10 +43,11 @@ case object Filewatcher extends App {
 
   def manageLog(parameters: Parameters): Unit = {
     rootLogger.setLevel(Level.toLevel(parameters.log.level))
-    val fileAppender = rootLogger
-      .getAppender("file")
-      .asInstanceOf[FileAppender[ILoggingEvent]]
-    fileAppender.setFile(s"${parameters.log.dir}${fileAppender.getFile}")
+    val fileAppender = rootLogger.getAppender("file").asInstanceOf[FileAppender[ILoggingEvent]]
+    fileAppender.setFile(s"${parameters.log.file}")
+    fileAppender.setName("file")
+    rootLogger.addAppender(fileAppender)
+    fileAppender.start()
   }
 
   parser.parse(args, ConfParameters()) match {

@@ -1,22 +1,19 @@
 {
   "input": {
     "paths": [
-      "src/main/resources/*.test",
-      "src/main/resources/*.test2",
-      "src/main/resources/*.conf",
-      "src/main/libs"
+      "src/main/resources/*.test"
     ],
     "interval": 1,
     "maxBufferSize": 8192
   },
   "kafka": {
     "host": [
-      "localhost:9092"
+      "192.168.99.100:9092"
     ],
     "topic": "topic"
   },
   "log": {
-    "dir": "/home/erwan/IdeaProjects/stream-filewatcher/",
+    "file": "/Users/mazelx/IdeaProjects/Saagie/stream-filewatcher/log/strem-filewatcher.log",
     "level": "DEBUG"
   }
 }

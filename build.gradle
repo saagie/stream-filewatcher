@@ -35,6 +35,8 @@ dependencies {
     compile group: 'org.json4s', name: "json4s-native_$scalaMajor", version: json4s
 
     compile group: 'com.github.scopt', name: "scopt_$scalaMajor", version: scopt
+
+    compile group: 'org.fusesource.leveldbjni', name: "leveldbjni-all", version: leveldbjni
 }
 
 ext.mainClassName = 'io.saagie.filewatcher.Filewatcher'

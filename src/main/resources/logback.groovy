@@ -33,7 +33,7 @@ appender("console-err", ConsoleAppender) {
 
 appender("file", FileAppender) {
     append = true
-    file = "filewatcher.log"
+    file = "/dev/null"
     immediateFlush = true
     encoder(PatternLayoutEncoder) {
         pattern = "%d{yy/MM/dd HH:mm:ss.SS} %p %c: %m%n"
