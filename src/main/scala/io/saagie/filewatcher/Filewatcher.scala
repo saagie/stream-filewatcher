@@ -1,11 +1,9 @@
 package io.saagie.filewatcher
 
-import java.nio.file.{FileSystems, Path}
+import java.nio.file.FileSystems
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.ActorMaterializer
-import akka.stream.alpakka.file.DirectoryChange
-import akka.stream.alpakka.file.scaladsl.{Directory, DirectoryChangesSource, FileTailSource}
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.{Level, Logger}
 import ch.qos.logback.core.FileAppender
@@ -13,7 +11,6 @@ import org.json4s._
 import org.json4s.native.Serialization._
 import org.slf4j.LoggerFactory
 
-import scala.concurrent.duration._
 import scala.io.Source
 import scala.util.Try
 

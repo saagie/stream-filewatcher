@@ -3,7 +3,7 @@ package io.saagie.filewatcher
 import java.nio.file.{FileSystem, FileSystems}
 
 import akka.actor.ActorLogging
-import akka.persistence.{PersistentActor, SnapshotOffer}
+import akka.persistence._
 import akka.stream.alpakka.file.scaladsl.FileTailSource
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.{ActorMaterializer, KillSwitches, UniqueKillSwitch}
@@ -15,6 +15,7 @@ import org.apache.kafka.common.serialization.StringSerializer
 import org.json4s.JsonDSL._
 import org.json4s.native.JsonMethods._
 
+import scala.math.max
 import scala.concurrent.duration._
 
 case class TrackerStatus(fileStates: List[FileState] = Monoid.empty[List[FileState]]) {
@@ -62,6 +63,7 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
   var state = TrackerStatus()
 
   val snapshotInterval = 5
+  val snapshotDepth: Long = 3
 
   val fs: FileSystem = FileSystems.getDefault
 
@@ -79,6 +81,7 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
     case SnapshotOffer(_, snapshot: TrackerStatus) => state = snapshot
   }
 
+
   def saveSnapshot(): Unit = {
     if (lastSequenceNr % snapshotInterval == 0 && lastSequenceNr != 0) {
       log.debug("Saving snapshot, Current state: {}", state)
@@ -88,6 +91,12 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
   }
 
   override def receiveCommand: Receive = {
+    case SaveSnapshotSuccess(metadata)         =>
+      val deleteSnapUntil: Long = max(0L, lastSequenceNr - (snapshotDepth * snapshotInterval))
+      deleteMessages(metadata.sequenceNr)
+      deleteSnapshots(SnapshotSelectionCriteria(minSequenceNr = 0L, maxSequenceNr = deleteSnapUntil))
+    case SaveSnapshotFailure(metadata, reason) =>
+      log.error("Impossible to save snapshot for sequence {}, cause: {}.", metadata.sequenceNr, reason)
     case open: OpenFile => persist(open) { o =>
       log.debug("Path to open: {}", o)
       state = state.openFile(o.path)
@@ -131,9 +140,11 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
           ("source" -> line.path) ~
           ("fields" -> ("log_type" -> line.topic))
       ))
-      producer.send(KafkaProducerRecord(line.topic, None, json))
-      self ! SkipLine(line.path, "")
       log.debug("Sending line to Kafka")
+      producer.send(KafkaProducerRecord(line.topic, None, json))
+
+      // increase skip counter as line has been sent to kafka
+      self ! SkipLine(line.path, "")
     case None =>
       log.info(s"Watcher Status: $state")
   }
