@@ -11,6 +11,7 @@ import cakesolutions.kafka.KafkaProducer.Conf
 import cakesolutions.kafka.{KafkaProducer, KafkaProducerRecord}
 import cats.instances.all._
 import cats.kernel.Monoid
+import com.typesafe.config.Config
 import org.apache.kafka.common.serialization.StringSerializer
 import org.json4s.JsonDSL._
 import org.json4s.native.JsonMethods._
@@ -52,7 +53,7 @@ case class FileState(path: String, processed: Long = Monoid.empty[Long], skip: L
   def processLine: FileState = copy(processed = processed + 1)
 }
 
-class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: Parameters) extends PersistentActor with ActorLogging {
+class FileTracker(implicit val fileSystem: FileSystem, implicit val cfg: Config) extends PersistentActor with ActorLogging {
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
 
@@ -68,7 +69,7 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
   val fs: FileSystem = FileSystems.getDefault
 
   val producer = KafkaProducer(
-    Conf(new StringSerializer(), new StringSerializer(), bootstrapServers = parameters.kafka.host.mkString(","))
+    Conf(new StringSerializer(), new StringSerializer(), bootstrapServers = String.join(",", cfg.getStringList("kafka.host")))
   )
 
   override def receiveRecover: Receive = {
@@ -102,10 +103,10 @@ class FileTracker(implicit val fileSystem: FileSystem, implicit val parameters: 
       state = state.openFile(o.path)
       context.system.eventStream.publish(o)
       saveSnapshot()
-      val switch = FileTailSource.lines(fs.getPath(open.path), parameters.input.maxBufferSize, parameters.input.interval seconds)
+      val switch = FileTailSource.lines(fs.getPath(open.path), cfg.getInt("input.maxBufferSize"), cfg.getInt("input.interval") seconds)
         .viaMat(KillSwitches.single)(Keep.right)
         .toMat(Sink.foreach(line => {
-          self ! ProcessLine(open.path, line, parameters.kafka.topic)
+          self ! ProcessLine(open.path, line, cfg.getString("kafka.topic"))
         }))(Keep.both)
         .run()
         ._1

@@ -6,6 +6,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.stream.ActorMaterializer
 import akka.stream.alpakka.file.DirectoryChange
 import akka.stream.alpakka.file.scaladsl.{Directory, DirectoryChangesSource}
+import com.typesafe.config.Config
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.util.{Failure, Success}
@@ -13,7 +14,7 @@ import scala.concurrent.duration._
 
 case class ListParent(parent: Path, matcher: PathMatcher)
 
-class DirectoryWatcher(implicit val fileSystem: FileSystem, tracker: ActorRef, implicit val parameters: Parameters) extends Actor with ActorLogging {
+class DirectoryWatcher(implicit val fileSystem: FileSystem, tracker: ActorRef, implicit val cfg: Config) extends Actor with ActorLogging {
   implicit val materializer: ActorMaterializer = ActorMaterializer()
 
   override def receive: Receive = {
@@ -24,7 +25,7 @@ class DirectoryWatcher(implicit val fileSystem: FileSystem, tracker: ActorRef, i
           tracker ! OpenFile(p.toString)
         }
       })
-      DirectoryChangesSource(parent.parent, parameters.input.interval seconds, parameters.input.maxBufferSize)
+      DirectoryChangesSource(parent.parent, cfg.getInt("input.interval") seconds, cfg.getInt("input.maxBufferSize"))
         .runForeach {
           case (p, change) => {
             if (parent.matcher.matches(p)) {
