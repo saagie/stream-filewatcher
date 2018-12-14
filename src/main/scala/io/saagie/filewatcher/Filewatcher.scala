@@ -1,5 +1,6 @@
 package io.saagie.filewatcher
 
+import java.io.File
 import java.nio.file.FileSystems
 
 import akka.actor.{ActorRef, ActorSystem, Props}
@@ -7,23 +8,15 @@ import akka.stream.ActorMaterializer
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.{Level, Logger}
 import ch.qos.logback.core.FileAppender
+import ch.qos.logback.core.rolling.{FixedWindowRollingPolicy, RollingFileAppender, SizeBasedTriggeringPolicy, TriggeringPolicy}
+import ch.qos.logback.core.util.FileSize
 import com.typesafe.config.ConfigFactory
 import org.slf4j.LoggerFactory
+
 import scala.util.Try
 import scala.collection.JavaConversions._
 
-//case class Parameters(input: Input,
-//                      kafka: KafkaConf,
-//                      log: Logging,
-//                      journal: Journal,
-//                      snapshot: Snapshot)
-
-//case class Input(paths: List[String], interval: Long, maxBufferSize: Int)
-//case class KafkaConf(host: List[String], topic: String)
-//case class Logging(dir: String, level: String)
 case class ConfParameters(path: Option[String] = None)
-//case class Journal(dir: String)
-//case class Snapshot(dir: String)
 
 case object Filewatcher extends App {
 
@@ -37,38 +30,58 @@ case object Filewatcher extends App {
       .required()
   }
 
-
-  def setLogConfig(logLevel: String, path:String): Unit = {
+  def setLogConfig(logLevel: String, path:String, keepNbFiles:Int, maxFileSizeMB: Int): Unit = {
     rootLogger.setLevel(Level.toLevel(logLevel))
     val p = path + (if(!path.endsWith("/")) "/" else "")
-    val fileAppender = rootLogger.getAppender("file").asInstanceOf[FileAppender[ILoggingEvent]]
+    val fileAppender = rootLogger.getAppender("file").asInstanceOf[RollingFileAppender[ILoggingEvent]]
+    val triggeringPolicy = fileAppender.getTriggeringPolicy.asInstanceOf[SizeBasedTriggeringPolicy[ILoggingEvent]]
+    val rollingPolicy = fileAppender.getRollingPolicy.asInstanceOf[FixedWindowRollingPolicy]
+    fileAppender.stop()
+    triggeringPolicy.stop()
+    rollingPolicy.stop()
+
+    rollingPolicy.setFileNamePattern(s"${p}streaming-filewatcher.%i.log")
+    rollingPolicy.setMaxIndex(keepNbFiles)
+
+    triggeringPolicy.setMaxFileSize(new FileSize(maxFileSizeMB * 1024 * 1024))
+
     fileAppender.setFile(s"${p}streaming-filewatcher.log")
+    fileAppender.setRollingPolicy(rollingPolicy)
+    fileAppender.setTriggeringPolicy(triggeringPolicy)
     fileAppender.setName("file")
+
     rootLogger.addAppender(fileAppender)
+    fileAppender.start()
+    triggeringPolicy.start()
+    rollingPolicy.start()
     fileAppender.start()
   }
 
-    val cfg = ConfigFactory.load()
-    this.setLogConfig(cfg.getString("log.dir"), cfg.getString("log.path"))
+  parser.parse(args, ConfParameters()) match {
+    case Some(conf) =>
+      val cfg = ConfigFactory.parseFile(new File(conf.path.get))
+      this.setLogConfig(
+        cfg.getString("log.level"), cfg.getString("log.dir"),cfg.getInt("log.maxIndex"), cfg.getInt("log.maxFileSizeMB")
+      )
 
-    implicit val system: ActorSystem = ActorSystem(s"Filewatcher", cfg)
-    implicit val materializer: ActorMaterializer = ActorMaterializer()
+      implicit val system: ActorSystem = ActorSystem(s"Filewatcher", cfg)
+      implicit val materializer: ActorMaterializer = ActorMaterializer()
 
-    val fs = FileSystems.getDefault
-    val parameters = ???
-    val tracker: ActorRef = system.actorOf(Props(classOf[FileTracker], fs, parameters))
-    val directoryWatcher = system.actorOf(Props(classOf[DirectoryWatcher], fs, tracker, parameters))
+      val fs = FileSystems.getDefault
+      val tracker: ActorRef = system.actorOf(Props(classOf[FileTracker], fs, cfg))
+      val directoryWatcher = system.actorOf(Props(classOf[DirectoryWatcher], fs, tracker, cfg))
 
-    val watchPaths = cfg.getStringList("input.paths")
-    watchPaths.foreach(pathString => {
-      Try {
-        val path = fs.getPath(pathString)
-        val parent = if (path.toFile.isDirectory) {
-          ListParent(path, fs.getPathMatcher(s"regex:.*"))
-        } else {
-          ListParent(path.getParent, fs.getPathMatcher(s"glob:$pathString"))
+      val watchPaths = cfg.getStringList("input.paths")
+      watchPaths.foreach(pathString => {
+        Try {
+          val path = fs.getPath(pathString)
+          val parent = if (path.toFile.isDirectory) {
+            ListParent(path, fs.getPathMatcher(s"regex:.*"))
+          } else {
+            ListParent(path.getParent, fs.getPathMatcher(s"glob:$pathString"))
+          }
+          directoryWatcher ! parent
         }
-        directoryWatcher ! parent
-      }
-    })
+      })
+  }
 }

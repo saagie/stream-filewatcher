@@ -30,13 +30,18 @@ appender("console-err", ConsoleAppender) {
         pattern = "%d{yy/MM/dd HH:mm:ss.SS} %p %c{1}: %m%n"
     }
 }
-
-appender("file", FileAppender) {
-    append = true
+appender("file", RollingFileAppender) {
     file = "/dev/null"
-    immediateFlush = true
+    rollingPolicy(FixedWindowRollingPolicy) {
+        fileNamePattern = "default-streaming-filewatcher.%i.log"
+        minIndex = 1
+        maxIndex = 3
+    }
+    triggeringPolicy(SizeBasedTriggeringPolicy) {
+        maxFileSize = "100MB"
+    }
     encoder(PatternLayoutEncoder) {
-        pattern = "%d{yy/MM/dd HH:mm:ss.SS} %p %c: %m%n"
+        pattern = "%d{yy/MM/dd HH:mm:ss.SS} %p %c{1}: %m%n"
     }
 }
 
